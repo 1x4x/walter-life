@@ -39,6 +39,24 @@ A clean, GitHub-inspired dark-mode dashboard to organize your tasks, reminders, 
 
 When creating or editing an item, select a repeat interval: every **N days, weeks, months, or years** (1–365). Completing a recurring item moves its due date to the next future occurrence and keeps it open. One-time items still complete normally. This is in-app scheduling, not push notifications.
 
+## 🔔 Browser push reminders (setup required)
+
+Walter Life includes a browser push subscription flow, a service worker, and a server-side reminder worker. After you enable notifications on a device, the worker checks every five minutes and attempts to send a notification for due or overdue open items once per due date, **at or after 09:00 in the server's local time zone**. The server must remain running. Browser/device support and notification delivery are not guaranteed.
+
+**Configure VAPID keys before enabling push.** Generate a VAPID public/private key pair using a trusted Web Push VAPID key generator. Supply the values using environment variables or .NET user secrets; **never commit the private key**:
+
+```bash
+dotnet user-secrets init
+dotnet user-secrets set "Push:PublicKey" "YOUR_PUBLIC_VAPID_KEY"
+dotnet user-secrets set "Push:PrivateKey" "YOUR_PRIVATE_VAPID_KEY"
+dotnet user-secrets set "Push:Subject" "mailto:you@example.com"
+dotnet user-secrets set "Push:Hour" "9"
+```
+
+Run over **HTTPS** (or localhost), open Walter Life, and click **Enable notifications**. Allow browser notifications when prompted. Each device/browser must subscribe separately. Click **Disable** to unsubscribe that device.
+
+**Security limitation:** This app has no authentication. Its push subscription endpoints and personal items are not protected by user accounts; do not expose it publicly until access controls are implemented. Subscription information is stored under `App_Data/`, which must be kept private and persistent.
+
 ## 🧰 Tech stack
 
 - **Backend:** C# / ASP.NET Core
@@ -117,7 +135,7 @@ App_Data/life.json
 - [x] JSON file persistence
 - [ ] Authentication and user accounts
 - [x] Configurable recurring items
-- [ ] Notifications
+- [x] Browser push notification implementation (requires VAPID configuration and testing)
 - [ ] Calendar and timeline views
 - [ ] Backup and restore
 - [ ] Automated build and UI tests
