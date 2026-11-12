@@ -41,7 +41,7 @@
                     {
                         <div class="item" @key="item.Id">
                             <input type="checkbox" checked="@item.Completed" @onchange="async e => await Toggle(item, e.Value is true)"/>
-                            <div class="item-body"><strong class="@(item.Completed ? "done" : "")">@item.Title</strong><div class="item-meta"><span class="tag">@item.Kind</span><span>@item.Category</span>@if (item.DueDate.HasValue) { <span>◷ @item.DueDate.Value.ToString("MMM d, yyyy")</span> }<span class="priority @item.Priority.ToString().ToLowerInvariant()">● @item.Priority</span></div>@if (!string.IsNullOrWhiteSpace(item.Description)) { <p>@item.Description</p> }</div>
+                            <div class="item-body"><strong class="@(item.Completed ? "done" : "")">@item.Title</strong><div class="item-meta"><span class="tag">@item.Kind</span><span>@item.Category</span>@if (item.DueDate.HasValue) { <span>◷ @item.DueDate.Value.ToString("MMM d, yyyy")</span> }<span class="priority @item.Priority.ToString().ToLowerInvariant()">● @item.Priority</span>@if (item.Recurrence != RecurrenceUnit.None) { <span title="Repeats after completion">↻ Every @(item.RepeatEvery) @item.Recurrence.ToString().ToLowerInvariant()@(item.RepeatEvery == 1 ? "" : "s")</span> }</div>@if (!string.IsNullOrWhiteSpace(item.Description)) { <p>@item.Description</p> }</div>
                             <button class="icon-btn" title="Edit" @onclick="() => Edit(item)">✎</button><button class="icon-btn" title="Delete" @onclick="() => Delete(item.Id)">×</button>
                         </div>
                     }
@@ -53,7 +53,7 @@
 </div>
 @if (editing)
 {
-    <div class="overlay" @onclick="Close"><div class="modal" @onclick:stopPropagation="true"><div class="modal-head"><h2>@(isNew ? "Create an item" : "Edit item")</h2><button class="icon-btn" @onclick="Close">×</button></div><form @onsubmit="Save" @onsubmit:preventDefault="true"><label>Title<input required maxlength="180" @bind="draft.Title" placeholder="What needs your attention?"/></label><label>Description<textarea rows="3" @bind="draft.Description" placeholder="Add some context..."></textarea></label><div class="form-grid"><label>Type<select @bind="draft.Kind">@foreach (var kind in Enum.GetValues<LifeKind>()) { <option value="@kind">@kind</option> }</select></label><label>Priority<select @bind="draft.Priority">@foreach (var priority in Enum.GetValues<LifePriority>()) { <option value="@priority">@priority</option> }</select></label></div><div class="form-grid"><label>Category<input @bind="draft.Category" placeholder="Personal"/></label><label>Due date<input type="date" @bind="draft.DueDate" @bind:format="yyyy-MM-dd"/></label></div><div class="modal-actions"><button type="button" class="secondary" @onclick="Close">Cancel</button><button type="submit" class="primary">Save item</button></div></form></div></div>
+    <div class="overlay" @onclick="Close"><div class="modal" @onclick:stopPropagation="true"><div class="modal-head"><h2>@(isNew ? "Create an item" : "Edit item")</h2><button class="icon-btn" @onclick="Close">×</button></div><form @onsubmit="Save" @onsubmit:preventDefault="true"><label>Title<input required maxlength="180" @bind="draft.Title" placeholder="What needs your attention?"/></label><label>Description<textarea rows="3" @bind="draft.Description" placeholder="Add some context..."></textarea></label><div class="form-grid"><label>Type<select @bind="draft.Kind">@foreach (var kind in Enum.GetValues<LifeKind>()) { <option value="@kind">@kind</option> }</select></label><label>Priority<select @bind="draft.Priority">@foreach (var priority in Enum.GetValues<LifePriority>()) { <option value="@priority">@priority</option> }</select></label></div><div class="form-grid"><label>Category<input @bind="draft.Category" placeholder="Personal"/></label><label>Due date<input type="date" @bind="draft.DueDate" @bind:format="yyyy-MM-dd"/></label></div><div class="form-grid"><label>Repeat<select @bind="draft.Recurrence">@foreach (var unit in Enum.GetValues<RecurrenceUnit>()) { <option value="@unit">@(unit == RecurrenceUnit.None ? "Does not repeat" : "Every " + unit.ToString().ToLowerInvariant())</option> }</select></label>@if (draft.Recurrence != RecurrenceUnit.None) { <label>Repeat every<input type="number" min="1" max="365" required @bind="draft.RepeatEvery"/></label> }</div><div class="modal-actions"><button type="button" class="secondary" @onclick="Close">Cancel</button><button type="submit" class="primary">Save item</button></div></form></div></div>
 }
 @code {
     private List<LifeItem> items = new();
@@ -72,9 +72,33 @@
     private static string Icon(LifeKind kind) => kind switch { LifeKind.Task => "☑", LifeKind.Reminder => "◷", LifeKind.Project => "▤", _ => "▣" };
     private void Select(string value) { section = value; filter = "Open"; search = ""; }
     private void NewItem() { draft = new LifeItem { Kind = section switch { "Reminders" => LifeKind.Reminder, "Projects" => LifeKind.Project, "Notes" => LifeKind.Note, _ => LifeKind.Task } }; isNew = true; editing = true; }
-    private void Edit(LifeItem item) { draft = new LifeItem { Id = item.Id, Title = item.Title, Description = item.Description, Kind = item.Kind, Category = item.Category, Priority = item.Priority, DueDate = item.DueDate, Completed = item.Completed, CreatedAt = item.CreatedAt }; isNew = false; editing = true; }
+    private void Edit(LifeItem item) { draft = new LifeItem { Id = item.Id, Title = item.Title, Description = item.Description, Kind = item.Kind, Category = item.Category, Priority = item.Priority, DueDate = item.DueDate, Completed = item.Completed, CreatedAt = item.CreatedAt, Recurrence = item.Recurrence, RepeatEvery = item.RepeatEvery }; isNew = false; editing = true; }
     private void Close() => editing = false;
-    private async Task Save() { if (string.IsNullOrWhiteSpace(draft.Title)) return; draft.Title = draft.Title.Trim(); await Store.SaveAsync(draft); items = await Store.GetAllAsync(); editing = false; }
-    private async Task Toggle(LifeItem item, bool value) { item.Completed = value; await Store.SaveAsync(item); items = await Store.GetAllAsync(); }
+    private async Task Save() { if (string.IsNullOrWhiteSpace(draft.Title)) return; draft.Title = draft.Title.Trim(); draft.RepeatEvery = Math.Clamp(draft.RepeatEvery, 1, 365); if (draft.Recurrence != RecurrenceUnit.None && draft.DueDate is null) draft.DueDate = DateTime.Today; await Store.SaveAsync(draft); items = await Store.GetAllAsync(); editing = false; }
+    private async Task Toggle(LifeItem item, bool value)
+    {
+        if (value && !item.Completed && item.Recurrence != RecurrenceUnit.None)
+        {
+            var date = (item.DueDate ?? DateTime.Today).Date;
+            var interval = Math.Clamp(item.RepeatEvery, 1, 365);
+            // Advance past today, so completing an overdue occurrence doesn't leave it overdue.
+            do
+            {
+                date = item.Recurrence switch
+                {
+                    RecurrenceUnit.Day => date.AddDays(interval),
+                    RecurrenceUnit.Week => date.AddDays(7 * interval),
+                    RecurrenceUnit.Month => date.AddMonths(interval),
+                    RecurrenceUnit.Year => date.AddYears(interval),
+                    _ => date
+                };
+            } while (date <= DateTime.Today);
+            item.DueDate = date;
+            item.Completed = false;
+        }
+        else item.Completed = value;
+        await Store.SaveAsync(item);
+        items = await Store.GetAllAsync();
+    }
     private async Task Delete(Guid id) { await Store.DeleteAsync(id); items = await Store.GetAllAsync(); }
 }
