@@ -35,6 +35,10 @@ A clean, GitHub-inspired dark-mode dashboard to organize your tasks, reminders, 
 | 🏷️ | **Priorities & categories** | Add context, urgency, and optional due dates. |
 | 🌙 | **Dark interface** | GitHub-inspired colors, subtle borders, and a responsive layout. |
 
+## 🔁 Recurring items
+
+When creating or editing an item, select a repeat interval: every **N days, weeks, months, or years** (1–365). Completing a recurring item moves its due date to the next future occurrence and keeps it open. One-time items still complete normally. This is in-app scheduling, not push notifications.
+
 ## 🧰 Tech stack
 
 - **Backend:** C# / ASP.NET Core
@@ -112,7 +116,8 @@ App_Data/life.json
 - [x] Search, filtering, and item editing
 - [x] JSON file persistence
 - [ ] Authentication and user accounts
-- [ ] Recurring reminders and notifications
+- [x] Configurable recurring items
+- [ ] Notifications
 - [ ] Calendar and timeline views
 - [ ] Backup and restore
 - [ ] Automated build and UI tests
