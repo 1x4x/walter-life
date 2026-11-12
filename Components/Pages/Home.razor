@@ -1,0 +1,80 @@
+@page "/"
+@inject LifeStore Store
+@rendermode InteractiveServer
+
+<PageTitle>Walter Life · Dashboard</PageTitle>
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand"><span class="moon">☾</span> Walter <span class="muted">Life</span></div>
+        <div class="side-label">WORKSPACE</div>
+        <button class="nav @(section == "Overview" ? "active" : "")" @onclick='() => Select("Overview")'>◫ &nbsp; Overview</button>
+        @foreach (var kind in Enum.GetValues<LifeKind>())
+        {
+            var label = kind.ToString() + "s";
+            <button class="nav @(section == label ? "active" : "")" @onclick="() => Select(label)">@Icon(kind) &nbsp; @label <span class="count">@items.Count(x => x.Kind == kind && !x.Completed)</span></button>
+        }
+        <div class="sidebar-bottom"><span class="avatar">W</span><span>My workspace<small>Personal dashboard</small></span></div>
+    </aside>
+    <main class="main">
+        <header class="topbar"><span class="breadcrumb">walter-life <span class="muted">/</span> <strong>@section.ToLowerInvariant()</strong></span><span class="topright">● &nbsp; All changes saved locally</span></header>
+        <div class="content">
+            <div class="heading"><div><div class="eyebrow">YOUR PERSONAL COMMAND CENTER</div><h1>@(section == "Overview" ? "Life overview" : section)</h1><p>Stay on top of what matters. One thing at a time.</p></div><button class="primary" @onclick="NewItem">＋ New item</button></div>
+            @if (section == "Overview")
+            {
+                <div class="stats">
+                    <div class="stat"><span>Open tasks</span><strong>@items.Count(x => x.Kind == LifeKind.Task && !x.Completed)</strong><small>Things to get done</small></div>
+                    <div class="stat"><span>Upcoming</span><strong>@items.Count(x => !x.Completed && x.DueDate >= DateTime.Today && x.DueDate <= DateTime.Today.AddDays(7))</strong><small>Next 7 days</small></div>
+                    <div class="stat"><span>Active projects</span><strong>@items.Count(x => x.Kind == LifeKind.Project && !x.Completed)</strong><small>In progress</small></div>
+                    <div class="stat"><span>Completed</span><strong>@items.Count(x => x.Completed)</strong><small>Small wins add up</small></div>
+                </div>
+            }
+            <div class="panel">
+                <div class="panel-head"><div><strong>@(section == "Overview" ? "Your priorities" : "All " + section.ToLowerInvariant())</strong><small>Keep your life organized</small></div><input class="search" placeholder="⌕  Search items..." @bind="search" @bind:event="oninput"/></div>
+                <div class="filters"><button class="chip @(filter == "Open" ? "selected" : "")" @onclick='() => filter = "Open"'>Open</button><button class="chip @(filter == "All" ? "selected" : "")" @onclick='() => filter = "All"'>All</button><button class="chip @(filter == "Completed" ? "selected" : "")" @onclick='() => filter = "Completed"'>Completed</button></div>
+                @if (!Visible.Any())
+                {
+                    <div class="empty"><div class="empty-icon">☾</div><strong>Nothing here yet</strong><p>Your next chapter starts with one small step.</p><button class="secondary" @onclick="NewItem">Create your first item</button></div>
+                }
+                else
+                {
+                    @foreach (var item in Visible)
+                    {
+                        <div class="item" @key="item.Id">
+                            <input type="checkbox" checked="@item.Completed" @onchange="async e => await Toggle(item, e.Value is true)"/>
+                            <div class="item-body"><strong class="@(item.Completed ? "done" : "")">@item.Title</strong><div class="item-meta"><span class="tag">@item.Kind</span><span>@item.Category</span>@if (item.DueDate.HasValue) { <span>◷ @item.DueDate.Value.ToString("MMM d, yyyy")</span> }<span class="priority @item.Priority.ToString().ToLowerInvariant()">● @item.Priority</span></div>@if (!string.IsNullOrWhiteSpace(item.Description)) { <p>@item.Description</p> }</div>
+                            <button class="icon-btn" title="Edit" @onclick="() => Edit(item)">✎</button><button class="icon-btn" title="Delete" @onclick="() => Delete(item.Id)">×</button>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="footer">☾ Walter Life · Built for the things that matter.</div>
+        </div>
+    </main>
+</div>
+@if (editing)
+{
+    <div class="overlay" @onclick="Close"><div class="modal" @onclick:stopPropagation="true"><div class="modal-head"><h2>@(isNew ? "Create an item" : "Edit item")</h2><button class="icon-btn" @onclick="Close">×</button></div><form @onsubmit="Save" @onsubmit:preventDefault="true"><label>Title<input required maxlength="180" @bind="draft.Title" placeholder="What needs your attention?"/></label><label>Description<textarea rows="3" @bind="draft.Description" placeholder="Add some context..."></textarea></label><div class="form-grid"><label>Type<select @bind="draft.Kind">@foreach (var kind in Enum.GetValues<LifeKind>()) { <option value="@kind">@kind</option> }</select></label><label>Priority<select @bind="draft.Priority">@foreach (var priority in Enum.GetValues<LifePriority>()) { <option value="@priority">@priority</option> }</select></label></div><div class="form-grid"><label>Category<input @bind="draft.Category" placeholder="Personal"/></label><label>Due date<input type="date" @bind="draft.DueDate" @bind:format="yyyy-MM-dd"/></label></div><div class="modal-actions"><button type="button" class="secondary" @onclick="Close">Cancel</button><button type="submit" class="primary">Save item</button></div></form></div></div>
+}
+@code {
+    private List<LifeItem> items = new();
+    private string section = "Overview";
+    private string filter = "Open";
+    private string search = "";
+    private bool editing;
+    private bool isNew;
+    private LifeItem draft = new();
+    private IEnumerable<LifeItem> Visible => items.Where(x =>
+        (section == "Overview" || x.Kind.ToString() + "s" == section) &&
+        (filter == "All" || (filter == "Completed" ? x.Completed : !x.Completed)) &&
+        (string.IsNullOrWhiteSpace(search) || x.Title.Contains(search, StringComparison.OrdinalIgnoreCase) || x.Description.Contains(search, StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(x => x.Completed).ThenBy(x => x.DueDate ?? DateTime.MaxValue).ThenByDescending(x => x.Priority);
+    protected override async Task OnInitializedAsync() => items = await Store.GetAllAsync();
+    private static string Icon(LifeKind kind) => kind switch { LifeKind.Task => "☑", LifeKind.Reminder => "◷", LifeKind.Project => "▤", _ => "▣" };
+    private void Select(string value) { section = value; filter = "Open"; search = ""; }
+    private void NewItem() { draft = new LifeItem { Kind = section switch { "Reminders" => LifeKind.Reminder, "Projects" => LifeKind.Project, "Notes" => LifeKind.Note, _ => LifeKind.Task } }; isNew = true; editing = true; }
+    private void Edit(LifeItem item) { draft = new LifeItem { Id = item.Id, Title = item.Title, Description = item.Description, Kind = item.Kind, Category = item.Category, Priority = item.Priority, DueDate = item.DueDate, Completed = item.Completed, CreatedAt = item.CreatedAt }; isNew = false; editing = true; }
+    private void Close() => editing = false;
+    private async Task Save() { if (string.IsNullOrWhiteSpace(draft.Title)) return; draft.Title = draft.Title.Trim(); await Store.SaveAsync(draft); items = await Store.GetAllAsync(); editing = false; }
+    private async Task Toggle(LifeItem item, bool value) { item.Completed = value; await Store.SaveAsync(item); items = await Store.GetAllAsync(); }
+    private async Task Delete(Guid id) { await Store.DeleteAsync(id); items = await Store.GetAllAsync(); }
+}
